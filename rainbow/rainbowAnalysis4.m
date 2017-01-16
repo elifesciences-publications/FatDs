@@ -942,8 +942,11 @@ end
 
 separation = cat(1,SeparationAll{:});
 
-nhist({separation}, 'noerror', 'linewidth', 2, 'maxbins',100);
-title(['Fat-Ds separation ' num2str(mean(separation), 3) '(' num2str(std(separation),2) '), Nbdries=' num2str(Nbdries)]);
+% the mode
+[theText, rawN, x] = nhist({separation}, 'noerror', 'linewidth', 2, 'maxbins',100);
+[~,idx] = max(rawN{1});
+
+title(['Fat-Ds separation avg' num2str(mean(separation), 3) '(' num2str(std(separation),2) '), Nbdries=' num2str(Nbdries) ', mode ' num2str(round(x{1}(idx)))]);
 xlabel('distance (nm)');
 
 if saveResults
@@ -952,3 +955,38 @@ if saveResults
     saveas(gcf, fullfile(datapath, 'separationCombined.fig'));
     %close;
 end
+
+
+%% separation per boundary
+
+% looks crappy for monoculture but should be done for coculture
+
+separation = [];%cat(1,SeparationAll{:});
+for i = 1:numel(SeparationAll)
+    separation = [separation mean(SeparationAll{i})];
+end
+
+hist(separation,15)
+if saveResults
+    I = getframe(gcf);
+    imwrite(I.cdata, fullfile(datapath, 'separationPerBoundary.png'));
+    saveas(gcf, fullfile(datapath, 'separationPerBoundary.fig'));
+    %close;
+end
+
+%%
+% the mode
+[theText, rawN, x] = nhist({separation}, 'noerror', 'linewidth', 2, 'maxbins',100);
+[~,idx] = max(rawN{1});
+
+title(['Fat-Ds separation avg' num2str(mean(separation), 3) '(' num2str(std(separation),2) '), Nbdries=' num2str(Nbdries) ', mode ' num2str(round(x{1}(idx)))]);
+xlabel('distance (nm)');
+
+if saveResults
+    I = getframe(gcf);
+    imwrite(I.cdata, fullfile(datapath, 'separationCombined.png'));
+    saveas(gcf, fullfile(datapath, 'separationCombined.fig'));
+    %close;
+end
+
+

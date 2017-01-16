@@ -72,14 +72,28 @@ TotFatA = zeros([1 T]);
 cellFatA = zeros([1 T]);
 bdryA = zeros([1 T]);
 
+%%
+
+FMIP = zeros([512 512 T]);%,'uint16');
+DMIP = zeros([512 512 T]);%,'uint16');
+for i = 1:T
+    FMIP(:,:,i) = imread(fullfile(datapath{movieIdx},'C2-SUM_002.tif'),i);
+    DMIP(:,:,i) = imread(fullfile(datapath{movieIdx},'C1-SUM_002.tif'),i);
+end
+
+%%
+
 for i = 1:T
     
-    data = imread(fullfile(datapath{movieIdx},sprintf(fnameFormat,i)));
+    %data = imread(fullfile(datapath{movieIdx},sprintf(fnameFormat,i)));
+    
     seg = imread(fullfile(datapath{movieIdx},sprintf(segFnameFormat,i)));
     bdryseg = imread(fullfile(datapath{movieIdx},sprintf(bdrysegFnameFormat,i)));
     
-    Fat = data(:,:,2);
-    Ds = data(:,:,1);
+    %Fat = data(:,:,2);
+    %Ds = data(:,:,1);
+    Fat = FMIP(:,:,i);
+    Ds = DMIP(:,:,i);
     
     % clean up teh segmentation a little
     FatMask = imclose(seg == 2, strel('disk',1));
@@ -95,7 +109,7 @@ for i = 1:T
     bdryEdge = bdryMask - imerode(bdryMask, strel('disk',2));
     FatEdge = FatMask - imerode(FatMask, strel('disk',2));
     DsEdge = DsMask - imerode(DsMask, strel('disk',2));
-    R = Ds + 255*uint8(DsEdge);
+    R = Ds + 255*DsEdge;
     G = double(Fat) + 255*FatEdge;
     B = 255*bdryEdge;
     R(bdryEdge > 0) = 0;
@@ -133,7 +147,7 @@ end
 
 %%
 
-tidx = tmin{movieIdx}:tmax{movieIdx};
+tidx = 1:40;%tmin{movieIdx}:tmax{movieIdx};
 
 TotFatbgsub = TotFatLevel - TotFatA.*Fatbg;
 TotDsbgsub = TotDsLevel - TotDsA.*Dsbg;
@@ -149,17 +163,19 @@ bdryFatbgsub = bdryFatbgsub(tidx);
 bdryDsbgsub = bdryDsbgsub(tidx);
 
 ext = {'.png','.fig'};
-axislim = [tidx(1) tidx(end) 10^3 10^6];
+axislim = [tidx(1) tidx(end) 10^3 10^8];
 
-for i = 1:numel(ext)
+for i = 1%:numel(ext)
     
+    figure,
     semilogy(tidx, TotFatbgsub)
     axis(axislim)
-    saveas(gcf, fullfile(outputDir,['TotFatLevel' ext{i}]));
+    %saveas(gcf, fullfile(outputDir,['TotFatLevel' ext{i}]));
     
+    figure,
     semilogy(tidx,TotDsbgsub)
     axis(axislim)
-    saveas(gcf, fullfile(outputDir,['TotDsLevel' ext{i}]));
+    %saveas(gcf, fullfile(outputDir,['TotDsLevel' ext{i}]));
 
 %     plot(cellFatLevel)
 %     saveas(gcf, fullfile(outputDir,['cellFatLevel' ext{i}]));
@@ -167,17 +183,19 @@ for i = 1:numel(ext)
 %     plot(cellDsLevel)
 %     saveas(gcf, fullfile(outputDir,['cellDsLevel' ext{i}]));
 %     
+    figure,
     semilogy(tidx,bdryFatbgsub)
     axis(axislim)
-    saveas(gcf, fullfile(outputDir,['bdryFatLevel' ext{i}]));
+    %saveas(gcf, fullfile(outputDir,['bdryFatLevel' ext{i}]));
     
+    figure,
     semilogy(tidx,bdryDsbgsub)
     axis(axislim)
-    saveas(gcf, fullfile(outputDir,['bdryDsLevel' ext{i}]));
+    %saveas(gcf, fullfile(outputDir,['bdryDsLevel' ext{i}]));
     
     
     loglog(bdryFatbgsub,bdryDsbgsub,'x')
-    saveas(gcf, fullfile(outputDir,['bdryFatVsDs' ext{i}]));
+    %saveas(gcf, fullfile(outputDir,['bdryFatVsDs' ext{i}]));
     
 %     
 %     plot(TotDsLevel, bdryDsLevel)
@@ -187,7 +205,7 @@ for i = 1:numel(ext)
 %     saveas(gcf, fullfile(outputDir,['bdryVsTotDsLevelLog' ext{i}]));
 end
 
-save(fullfile(outputDir, 'bdryIntensities'),'bdryFatbgsub','bdryDsbgsub')
+%save(fullfile(outputDir, 'bdryIntensities'),'bdryFatbgsub','bdryDsbgsub')
 
 %% combined plot stochiometry of movies and fixed
 

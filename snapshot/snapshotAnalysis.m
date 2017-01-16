@@ -42,7 +42,8 @@ goodseg = [];
 for i = 1:nImages;
     
     % PAY ATTENTION: there was _new at the end here at some point
-    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg']);
+    % _seg_exclNuc = exclude accumulating boundaries (tired in naming)
+    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg_new']);
     if exist([fname '.mat'],'file')
         S = load(fname);
         CL{i} = S.cellLayer;
@@ -220,7 +221,7 @@ for row = 1:nrows
     plotInfo = struct('plotTitle', plotTitles{row});
     subplotDist(nrows, ncols, row, plotInfo, stats, fieldnames{row}, flabel,...
                     batchIdx, batchLabel)
-    %subplotDist(nrows, ncols, row, plotInfo, stats(batchIdx{3}), fieldnames{row}, flabel(batchIdx{3}));
+    %subplotDist(nrows, ncsols, row, plotInfo, stats(batchIdx{3}), fieldnames{row}, flabel(batchIdx{3}));
 end
 set(gcf, 'Color', 'w');
 if saveResults
@@ -258,7 +259,7 @@ for row = 1:nrows
     plotInfo = struct('plotTitle', plotTitles{row});
     subplotDistSingleTimeForFigure(nrows, ncols, row, plotInfo, statsTot(12), fieldnames{row}, batchLabel(12));
 end
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvg' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvg' ext]));
 
 %% only 20 h combined distribution Ds for figure
 
@@ -269,7 +270,7 @@ hold on
 plot(statsTot{12}.IDsBdry.bins, statsTot{12}.IDsBdry.dist, 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Ds no boundary','Ds boundary'})
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombined' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombined' ext]));
 
 %% only 20 h combined distribution Ds on log scale for figure
 
@@ -281,8 +282,8 @@ hold on
 semilogx(statsTot{12}.IDsBdryLogBin.bins(1:end-1) - DsBG, statsTot{12}.IDsBdryLogBin.dist(1:end-1), '-', 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Ds no boundary','Ds boundary'})
-axis([10 1.5*10^3 0 0.15])
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLogBinned' ext]));
+axis([10 1.5*10^3 0 0.05])
+saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLogBinnedX' ext]));
 
 %% only 20 h combined distribution Ds on log scale BUT NOT LOG BINNED for figure
 
@@ -295,7 +296,7 @@ semilogx(statsTot{12}.IDsBdry.bins(1:end-1) - DsBG, statsTot{12}.IDsBdry.dist(1:
 hold off
 legend({'Ds no boundary','Ds boundary'})
 axis([10 1.5*10^3 0 0.15])
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLog' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLog' ext]));
 
 %% only 20 h combined distribution Fat for figure
 
@@ -305,7 +306,7 @@ hold on
 plot(statsTot{12}.IFatBdry.bins, statsTot{12}.IFatBdry.dist, 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Fat no boundary','Fat boundary'})
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombined' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombined' ext]));
 
 %% only 20 h combined distribution Fat on log scale for figure
 
@@ -318,7 +319,7 @@ semilogx(statsTot{12}.IFatBdryLogBin.bins(1:end-1) - FatBG, statsTot{12}.IFatBdr
 hold off
 axis([10 1.5*10^3 0 0.15])
 legend({'Fat no boundary','Fat boundary'})
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLogBinned' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLogBinned' ext]));
 
 %% only 20 h combined distribution Fat on log scale BUT NOT LOG BINNED for figure
 
@@ -331,7 +332,7 @@ semilogx(statsTot{12}.IFatBdry.bins(1:end-1) - FatBG, statsTot{12}.IFatBdry.dist
 hold off
 axis([10 1.5*10^3 0 0.15])
 legend({'Fat no boundary','Fat boundary'})
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLog' ext]));
+%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLog' ext]));
 
 %%
 % visualize Fat 
@@ -405,7 +406,7 @@ end
 %--------------------------------------------------------------
 % interface counting
 %--------------------------------------------------------------
-
+t=1;
 for i = goodseg
 
     cellLayer = CL{i};
@@ -419,16 +420,11 @@ for i = goodseg
     % count fraction of Fat-Ds interfaces with boundaries
     bondStates = cat(1,cellLayer.bonds{t}.state);
 
-    % FRACTIONAL VALUES, SOMETHING WENT WRONG!!!
-    disp('-');
-    sum(bondStates(:,1) == 1)/2
-    sum(bondStates(:,4) == 1)/2
-    disp('--');
-    
-    stats{i}.NFatDsInterfaces = sum(bondStates(:,1) == 1)/2;
-    stats{i}.NFatFatInterfaces = sum(bondStates(:,2) == 1)/2;
-    stats{i}.NDsDsInterfaces = sum(bondStates(:,3) == 1)/2;
-    stats{i}.NFatDsBdries = sum(bondStates(:,4) == 1)/2;
+    % FRACTIONAL VALUES, SOMETHING WENT WRONG?
+    stats{i}.NFatDsInterfaces = round(sum(bondStates(:,1) == 1)/2);
+    stats{i}.NFatFatInterfaces = round(sum(bondStates(:,2) == 1)/2);
+    stats{i}.NDsDsInterfaces = round(sum(bondStates(:,3) == 1)/2);
+    stats{i}.NFatDsBdries = round(sum(bondStates(:,4) == 1)/2);
 
     % fraction of FatDs interfaces that form a boundary
     bdryFraction = stats{i}.NFatDsBdries/stats{i}.NFatDsInterfaces;
@@ -620,9 +616,6 @@ end
 %-----------------------------------------------------------------
 % scatter plot of Fat/Ds of cell in Fat/Ds interface and boundary
 %-----------------------------------------------------------------
-
-% HALF INTEGER N ? SOMETHING IS WRONG
-% i =8, batchIdx{i}(9) something wrong with BG subtraction in log plot
 
 c1FatTot = [];
 c2DsTot = [];
@@ -1034,9 +1027,6 @@ end
 % scatter plot of Ds of cell vs boundary intensity
 %-----------------------------------------------------------------
 
-% HALF INTEGER N ? SOMETHING IS WRONG
-% i =8, batchIdx{i}(9) something wrong with BG subtraction in log plot
-
 c1FatTot = [];
 c2DsTot = [];
 c1FatBTot = [];
@@ -1130,9 +1120,6 @@ for i = 5%:nBatches
     %legend( 'Fat-Ds boundary','Fat-Ds interface');
 end
 
-
-% NO CORRELATION? NEED TO DO SOME CHECKS
-
 %%
 %------------------------------------------------
 % save stats human readable and matlab format
@@ -1151,3 +1138,24 @@ for i = 1:nImages
     S = stats{i};
     save(fullfile(filepath{i}, 'analysis_results', 'stats_new'), 'S');
 end
+
+%%
+%-------------------------------------------------------
+% save stats human readable and matlab format for elife
+%-------------------------------------------------------
+
+for i = 1:nImages
+
+    txtfile = fullfile(filepath{i}, 'analysis_results', 'stats_new.txt');
+    if exist(txtfile)
+        delete(fullfile(filepath{i}, 'analysis_results', 'stats_new.txt'));
+    end
+    diary(txtfile)
+%     i
+%     stats{i}
+    diary off
+    S = stats{i};
+    fparts = strsplit(filepath{i},'/');
+    save(fullfile(combinedOutputPath, ['stats_' fparts{end-1} '_' fparts{end}]), 'S');
+end
+
