@@ -27,7 +27,7 @@ function [fnames, lims, label] = preIlastik(datapath, dataset, corder, saveims, 
             nDatasets = nDatasets + 1;
         end
     end
-    
+
     n = 1;
     batchIdx = {};
     for i = 1:numel(datapath)

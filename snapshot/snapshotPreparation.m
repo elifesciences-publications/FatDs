@@ -16,7 +16,8 @@ cd('../..');
 addpath(genpath(pwd));
 
 % import parameters (data and code locations, ...)
-snapshotSegParametersLocal;
+%snapshotSegParametersLocal;
+snapshotSegParametersLocal_exp020715;
 
 %filepath = {'/Users/idse/Dropbox/Sprinzak/shared/snapshots 07.05.15/6h dox ilastic/dox 1h_5/'};
 %corder = {[1 3 2 4]};

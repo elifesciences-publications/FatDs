@@ -39,7 +39,7 @@ nBatches = numel(batchLabel);
 % for robustness of batches
 goodseg = [];
 
-for i = 1:nImages;
+for i = 1:nImages
     
     % PAY ATTENTION: there was _new at the end here at some point
     % _seg_exclNuc = exclude accumulating boundaries (tired in naming)
@@ -64,12 +64,14 @@ end
 saveResults = false;
 
 % PAY ATTENTION: there was _new at the end here at some point
-ext = '.png';
+ext = '526.png';
 
 stats = {};
 
 % fixed samples, not time
 t = 1;
+
+Nbins = 50;
 
 %%
 %--------------------------------------------------------------
@@ -99,42 +101,75 @@ for i = goodseg
         Imax = lims{i,c}(2)*adjust(c);
         Imin = lims{i,c}(1);
         Irange = Imax - Imin;
-        Ibins{c} = Imin:Irange/50:Imax;
+        Ibins{c} = Imin:Irange/Nbins:Imax;
     end
     
-    % intensity dist of cells that have a boundary
+    % index of cells that have a boundary
     cellsWBdry = false(size(FatIdx));
+    % index of cells that have no boundary but do have a Fat-Ds interface
+    cellsWFDif = false(size(FatIdx)); 
+    
     for ci = 1:numel(cellsWBdry)
+        
         % bond states in cell
-        bsOfCell = cat(1,cellLayer.bonds{t}(cellLayer.cells{t}(ci).bondInd).state);
+        cbi = cellLayer.cells{t}(ci).bondInd;
+        bsOfCell = cat(1, cellLayer.bonds{t}(cbi).state);
+        
+        % 4th column of bond.state is boolean bdry
         if ~isempty(bsOfCell) && any(bsOfCell(:,4)==1)
             cellsWBdry(ci)=true;
         end 
+        
+        if ~isempty(bsOfCell) && any(bsOfCell(:,1)==1)
+            cellsWFDif(ci)=true;
+        end 
     end
+
+    % FDIF == SEG & FDIF
+    % cells that have no boundary but do have a Fat-Ds interface
+    % to check against cells that have no bdry in general -> same
+    stats{i}.IDsFDIF = makeDist(IDs(cellsWFDif & DsIdx), Ibins{1});
+    stats{i}.IFatFDIF = makeDist(IFat(cellsWFDif & FatIdx), Ibins{2}); 
+
+    % BDRY == SEG & BDRY
     stats{i}.IDsBdry = makeDist(IDs(cellsWBdry & DsIdx), Ibins{1});
     stats{i}.IFatBdry = makeDist(IFat(cellsWBdry & FatIdx), Ibins{2}); 
 
+    % NO BDRY == SEG & NO BDRY
     stats{i}.IDsNoBdry = makeDist(IDs(~cellsWBdry & DsIdx), Ibins{1});
     stats{i}.IFatNoBdry = makeDist(IFat(~cellsWBdry & FatIdx), Ibins{2}); 
-    
+
     % NEW: logscale binning
-    logbinsDs = exp(linspace(log(min(Ibins{1})), log(max(Ibins{1})),50));
-    stats{i}.IDsBdryLogBin = makeDist(IDs(cellsWBdry & DsIdx), logbinsDs);
-    stats{i}.IDsNoBdryLogBin = makeDist(IDs(~cellsWBdry & DsIdx), logbinsDs);
     
-    logbinsFat = exp(linspace(log(min(Ibins{2})), log(max(Ibins{2})),50));
-    stats{i}.IFatBdryLogBin = makeDist(IDs(cellsWBdry & FatIdx), logbinsFat);
-    stats{i}.IFatNoBdryLogBin = makeDist(IDs(~cellsWBdry & FatIdx), logbinsFat);
+%     logbinsDs = exp(linspace(log(min(Ibins{1})), log(max(Ibins{1})),50));
+%     stats{i}.IDsBdryLogBin = makeDist(IDs(cellsWBdry & DsIdx)-100, logbinsDs);
+%     stats{i}.IDsNoBdryLogBin = makeDist(IDs(~cellsWBdry & DsIdx)-100, logbinsDs);
+
+%     logbinsFat = exp(linspace(log(min(Ibins{2})), log(max(Ibins{2})), Nbins));
+%     stats{i}.IFatBdryLogBin = makeDist(IFat(cellsWBdry & FatIdx), logbinsFat);
+%     stats{i}.IFatNoBdryLogBin = makeDist(IFat(~cellsWBdry & FatIdx), logbinsFat);
+  
+    % stats after substracting background value, lambdaI cutoff 
+    lambdaI = 10;
+    IDsmin = Ibins{1}(1);
+    IDsmax = Ibins{1}(end);
+    logbinsDs = exp(linspace(log(lambdaI), log(IDsmax - IDsmin), Nbins));
+    stats{i}.IDsBdryLogBin = makeDist(IDs(cellsWBdry & DsIdx) - IDsmin, logbinsDs);
+    stats{i}.IDsNoBdryLogBin = makeDist(IDs(~cellsWBdry & DsIdx)  - IDsmin, logbinsDs);
     
-    % intensity distribution of all cells
+    IFatmin = Ibins{2}(1);
+    IFatmax = Ibins{2}(end);
+    logbinsFat = exp(linspace(log(lambdaI), log(IFatmax - IFatmin), Nbins));
+    stats{i}.IFatBdryLogBin = makeDist(IFat(cellsWBdry & FatIdx) - IFatmin, logbinsFat);
+    stats{i}.IFatNoBdryLogBin = makeDist(IFat(~cellsWBdry & FatIdx)  - IFatmin, logbinsFat);
+    
+    % ALL: intensity distribution of all cells
     stats{i}.IDs = makeDist(IDs, Ibins{1});
     stats{i}.IFat = makeDist(IFat, Ibins{2});
 
-    % intensity distribution of segmented cells
+    % SEG: intensity distribution of segmented cells
     stats{i}.IDsSeg = makeDist(IDs(DsIdx), Ibins{1});
     stats{i}.IFatSeg = makeDist(IFat(FatIdx), Ibins{2});
-    stats{i}.IDsInOtherCell = makeDist(IDs(~DsIdx), Ibins{1});
-    stats{i}.IFatInOtherCell = makeDist(IFat(~FatIdx), Ibins{2});
 end
 
 %%
@@ -148,60 +183,152 @@ for i = 1:nBatches
     
     IDsTot = [];
     IFatTot = [];
+    
+    IDsFDIFTot = [];
+    IFatFDIFTot = [];
+    
     IDsBdryTot = [];
-    IDsBdryTotLogBin = [];
     IFatBdryTot = [];
-    IFatBdryTotLogBin = [];
     IDsNoBdryTot = [];
-    IDsNoBdryTotLogBin = [];
     IFatNoBdryTot = [];
-    IFatNoBdryTotLogBin = [];
     IDsSegTot = [];
     IFatSegTot = [];
     batchStat = struct();
     
+    % combine data
+    %-----------------------------
     for j = 1:numel(batchIdx{i})
         
           idx = batchIdx{i}(j);
           
+          % ALL
           IDsTot = cat(1, IDsTot, stats{idx}.IDs.table);
-          batchStat.IDs = makeDist(IDsTot, Ibins{1});
-
           IFatTot = cat(1, IFatTot, stats{idx}.IFat.table);
-          batchStat.IFat = makeDist(IFatTot, Ibins{2});
 
+          % SEG FDIF
+          IDsFDIFTot = cat(1, IDsFDIFTot, stats{idx}.IDsFDIF.table);
+          IFatFDIFTot = cat(1, IFatFDIFTot, stats{idx}.IFatFDIF.table);
+
+          % SEG BDRY
           IDsBdryTot = cat(1, IDsBdryTot, stats{idx}.IDsBdry.table);
-          batchStat.IDsBdry = makeDist(IDsBdryTot, Ibins{1});
-          
-          IDsBdryTotLogBin = cat(1, IDsBdryTotLogBin, stats{idx}.IDsBdryLogBin.table);
-          batchStat.IDsBdryLogBin = makeDist(IDsBdryTotLogBin, logbinsDs);
-
-          IFatBdryTotLogBin = cat(1, IFatBdryTotLogBin, stats{idx}.IFatBdryLogBin.table);
-          batchStat.IFatBdryLogBin = makeDist(IFatBdryTotLogBin, logbinsFat);
-
           IFatBdryTot = cat(1, IFatBdryTot, stats{idx}.IFatBdry.table);
-          batchStat.IFatBdry = makeDist(IFatBdryTot, Ibins{2});
 
+          % SEG NO BDRY
           IDsNoBdryTot = cat(1, IDsNoBdryTot, stats{idx}.IDsNoBdry.table);
-          batchStat.IDsNoBdry = makeDist(IDsNoBdryTot, Ibins{1});
-
-          IDsNoBdryTotLogBin = cat(1, IDsNoBdryTotLogBin, stats{idx}.IDsNoBdryLogBin.table);
-          batchStat.IDsNoBdryLogBin = makeDist(IDsNoBdryTotLogBin, logbinsDs);
-          
           IFatNoBdryTot = cat(1, IFatNoBdryTot, stats{idx}.IFatNoBdry.table);
-          batchStat.IFatNoBdry = makeDist(IFatNoBdryTot, Ibins{2});
 
-          IFatNoBdryTotLogBin = cat(1, IFatNoBdryTotLogBin, stats{idx}.IFatNoBdryLogBin.table);
-          batchStat.IFatNoBdryLogBin = makeDist(IFatNoBdryTotLogBin, logbinsFat);
-          
+          % SEG
           IDsSegTot = cat(1, IDsSegTot, stats{idx}.IDsSeg.table);
-          batchStat.IDsSeg = makeDist(IDsSegTot, Ibins{1});
-
           IFatSegTot = cat(1, IFatSegTot, stats{idx}.IFatSeg.table);
-          batchStat.IFatSeg = makeDist(IFatSegTot, Ibins{2});
     end
     
+    % make combined distribution
+    %-----------------------------
+    
+    % ALL
+    batchStat.IDs = makeDist(IDsTot, Ibins{1});
+    batchStat.IFat = makeDist(IFatTot, Ibins{2});
+     
+    % SEG
+    batchStat.IDsSeg = makeDist(IDsSegTot, Ibins{1});
+    batchStat.IFatSeg = makeDist(IFatSegTot, Ibins{2});
+    
+    % SEG FDIF LOG
+    batchStat.IDsFDIFLogBin = makeDist(IDsFDIFTot, logbinsDs);
+    batchStat.IFatFDIFLogBin = makeDist(IFatFDIFTot, logbinsFat);
+    
+    % SEG NO BDRY
+    batchStat.IDsNoBdry = makeDist(IDsNoBdryTot, Ibins{1});
+    batchStat.IFatNoBdry = makeDist(IFatNoBdryTot, Ibins{2});
+
+    % SEG NO BDRY LOG
+    batchStat.IDsNoBdryLogBin = makeDist(IDsNoBdryTot - IDsmin, logbinsDs);
+    batchStat.IFatNoBdryLogBin = makeDist(IFatNoBdryTot - IDsmin, logbinsFat);
+          
+    % SEG BDRY
+    batchStat.IDsBdry = makeDist(IDsBdryTot, Ibins{1});
+    batchStat.IFatBdry = makeDist(IFatBdryTot, Ibins{2});
+
+    % SEG BDRY LOG
+    batchStat.IDsBdryLogBin = makeDist(IDsBdryTot  - IDsmin, logbinsDs);
+    batchStat.IFatBdryLogBin = makeDist(IFatBdryTot - IDsmin, logbinsFat);
+          
     statsTot{i} = batchStat;
+end
+
+%% check that distributions are made correctly and compare 2D dist
+
+bi = 12;
+
+binstmp = 100:100:2000;
+dist = hist(IDsNoBdryTot - 100, binstmp);
+dist = dist./sum(dist(:));
+% 
+% figure, plot(binstmp, dist,'-x')
+
+figure,
+%semilogx(logbinsDs(1:end-1), statsTot{bi}.IDsFDIFLogBin.dist(1:end-1), '-x', 'Color', 'b', 'LineWidth', 2);
+% as expected cells with an interface to the other kind (~2/3) 
+% have the same distribution of intensities
+semilogx(logbinsDs(1:end-1), statsTot{bi}.IDsNoBdryLogBin.dist(1:end-1), '-x', 'Color', 'r', 'LineWidth', 2);
+hold on
+semilogx(logbinsDs(1:end-1), statsTot{bi}.IDsBdryLogBin.dist(1:end-1), '-x', 'Color', 'b', 'LineWidth', 2);
+%semilogx(logbinsDs(1:end-1), log(logbinsDs(1:end-1))/300,'-x');
+%semilogx(logbinsDs(1:end-1), dist(1:end-1), '-x', 'Color', 'g', 'LineWidth', 2);
+xlim([logbinsDs(1) logbinsDs(end)]);
+hold off
+
+figure,
+plot(Ibins{1}(1:end-1), statsTot{bi}.IDsNoBdry.dist(1:end-1), '-x', 'Color', 'r', 'LineWidth', 2);
+hold on
+plot(Ibins{1}(1:end-1), statsTot{bi}.IDsBdry.dist(1:end-1), '-x', 'Color', 'b', 'LineWidth', 2);
+xlim([Ibins{1}(1) Ibins{1}(end)]);
+hold off
+
+figure,
+semilogx(Ibins{1}(1:end-1), statsTot{bi}.IDsNoBdry.dist(1:end-1), '-x', 'Color', 'r', 'LineWidth', 2);
+hold on
+semilogx(Ibins{1}(1:end-1), statsTot{bi}.IDsBdry.dist(1:end-1), '-x', 'Color', 'b', 'LineWidth', 2);
+xlim([Ibins{1}(1) Ibins{1}(end)]);
+hold off
+
+
+%% look at Fat avg over time and Fat median
+
+M = [];
+for i = 1
+    for j = 1:numel(batchIdx{i})
+        idx = batchIdx{i}(j);
+        M = cat(1, M, stats{idx}.IFatSeg.table);
+        [j mean(stats{idx}.IFatSeg.table)]
+    end
+end
+
+FatAvg = [];
+FatMedian = [];
+for i = 1:nBatches
+    
+    FatAvg(i) = mean(statsTot{i}.IFatSeg.table);
+    FatMedian(i) = median(statsTot{i}.IFatSeg.table);
+    
+    %FatAvg(i) = mean(statsTot{i}.IFatBdry.table);
+    %FatMedian(i) = median(statsTot{i}.IFatBdry.table);
+end
+
+figure,
+plot(batchTimes, FatMedian,'-x','LineWidth',2)
+%ylim([180 240])
+hold on
+plot(batchTimes, FatAvg,'-x','LineWidth',2)
+hold off
+legend({'median','mean'});
+title('Fat intensity in Fat cells')
+%title('Fat intensity in Fat cells with boundary')
+
+saveResults = true;
+if saveResults
+    
+    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatVsTime' ext]));    
 end
 
 %%
@@ -253,11 +380,14 @@ end
 
 %% only 20h average for figure
 
+figure,
+batchLabel{bi}
+
 ext = '.fig';
 clf
 for row = 1:nrows
     plotInfo = struct('plotTitle', plotTitles{row});
-    subplotDistSingleTimeForFigure(nrows, ncols, row, plotInfo, statsTot(12), fieldnames{row}, batchLabel(12));
+    subplotDistSingleTimeForFigure(nrows, ncols, row, plotInfo, statsTot(bi), fieldnames{row}, batchLabel(bi));
 end
 %saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvg' ext]));
 
@@ -265,45 +395,45 @@ end
 
 clf
 %h = gcf;
-plot(statsTot{12}.IDsNoBdry.bins, statsTot{12}.IDsNoBdry.dist, 'Color', 'r', 'LineWidth', 2);
+plot(statsTot{bi}.IDsNoBdry.bins, statsTot{bi}.IDsNoBdry.dist, 'Color', 'r', 'LineWidth', 2);
 hold on
-plot(statsTot{12}.IDsBdry.bins, statsTot{12}.IDsBdry.dist, 'Color', 'k', 'LineWidth', 2);
+plot(statsTot{bi}.IDsBdry.bins, statsTot{bi}.IDsBdry.dist, 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Ds no boundary','Ds boundary'})
 %saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombined' ext]));
 
 %% only 20 h combined distribution Ds on log scale for figure
 
+figure,
 clf
-h = gcf
-DsBG = 120; 
-semilogx(statsTot{12}.IDsNoBdryLogBin.bins(1:end-1) - DsBG, statsTot{12}.IDsNoBdryLogBin.dist(1:end-1), '-', 'Color', 'r', 'LineWidth', 2);
+h = gcf;
+
+% bin def:
+% logbinsDs = exp(linspace(log(min(Ibins{1})), log(max(Ibins{1})),50));
+
+bins = statsTot{bi}.IDsNoBdryLogBin.bins(1:end-1);
+nobdrydist = statsTot{bi}.IDsNoBdryLogBin.dist(1:end-1);
+bdrydist = statsTot{bi}.IDsBdryLogBin.dist(1:end-1);
+
+[x,y] = histForBarlikePlot(bins, nobdrydist');
+semilogx(x, y, '-', 'Color', 'r', 'LineWidth', 2);
 hold on
-semilogx(statsTot{12}.IDsBdryLogBin.bins(1:end-1) - DsBG, statsTot{12}.IDsBdryLogBin.dist(1:end-1), '-', 'Color', 'k', 'LineWidth', 2);
+[x,y] = histForBarlikePlot(bins, bdrydist');
+semilogx(x, y, '-', 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Ds no boundary','Ds boundary'})
-axis([10 1.5*10^3 0 0.05])
-saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLogBinnedX' ext]));
-
-%% only 20 h combined distribution Ds on log scale BUT NOT LOG BINNED for figure
-
-clf
-h = gcf
-DsBG = 120; 
-semilogx(statsTot{12}.IDsNoBdry.bins(1:end-1) - DsBG, statsTot{12}.IDsNoBdry.dist(1:end-1), '-', 'Color', 'r', 'LineWidth', 2);
-hold on
-semilogx(statsTot{12}.IDsBdry.bins(1:end-1) - DsBG, statsTot{12}.IDsBdry.dist(1:end-1), '-', 'Color', 'k', 'LineWidth', 2);
-hold off
-legend({'Ds no boundary','Ds boundary'})
-axis([10 1.5*10^3 0 0.15])
-%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLog' ext]));
+axis([10 bins(end) 0 0.05])
+%axis([10^2 1.2*10^3 0 0.05])
+if saveResults
+    saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity20hAvgCombinedLogBinnedX' ext]));
+end
 
 %% only 20 h combined distribution Fat for figure
 
 clf
-plot(statsTot{12}.IFatNoBdry.bins, statsTot{12}.IFatNoBdry.dist, 'Color', 'r', 'LineWidth', 2);
+plot(statsTot{bi}.IFatNoBdry.bins, statsTot{bi}.IFatNoBdry.dist, 'Color', 'r', 'LineWidth', 2);
 hold on
-plot(statsTot{12}.IFatBdry.bins, statsTot{12}.IFatBdry.dist, 'Color', 'k', 'LineWidth', 2);
+plot(statsTot{bi}.IFatBdry.bins, statsTot{bi}.IFatBdry.dist, 'Color', 'k', 'LineWidth', 2);
 hold off
 legend({'Fat no boundary','Fat boundary'})
 %saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombined' ext]));
@@ -311,28 +441,21 @@ legend({'Fat no boundary','Fat boundary'})
 %% only 20 h combined distribution Fat on log scale for figure
 
 figure
-h = gcf
-FatBG = 110; 
-semilogx(statsTot{12}.IFatNoBdryLogBin.bins(1:end-1) - FatBG, statsTot{12}.IFatNoBdryLogBin.dist(1:end-1), '-', 'Color', 'r', 'LineWidth', 2);
-hold on
-semilogx(statsTot{12}.IFatBdryLogBin.bins(1:end-1) - FatBG, statsTot{12}.IFatBdryLogBin.dist(1:end-1), '-', 'Color', 'k', 'LineWidth', 2);
-hold off
-axis([10 1.5*10^3 0 0.15])
-legend({'Fat no boundary','Fat boundary'})
-%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLogBinned' ext]));
 
-%% only 20 h combined distribution Fat on log scale BUT NOT LOG BINNED for figure
-
-figure
-h = gcf
-FatBG = 110; 
-semilogx(statsTot{12}.IFatNoBdry.bins(1:end-1) - FatBG, statsTot{12}.IFatNoBdry.dist(1:end-1), '-', 'Color', 'r', 'LineWidth', 2);
+bins = statsTot{bi}.IFatNoBdryLogBin.bins(1:end-1);
+nobdrydist = statsTot{12}.IFatNoBdryLogBin.dist(1:end-1);
+bdrydist = statsTot{12}.IFatBdryLogBin.dist(1:end-1);
+[x,y] = histForBarlikePlot(bins, nobdrydist');
+semilogx(x, y, '-', 'Color', 'r', 'LineWidth', 2);
 hold on
-semilogx(statsTot{12}.IFatBdry.bins(1:end-1) - FatBG, statsTot{12}.IFatBdry.dist(1:end-1), '-', 'Color', 'k', 'LineWidth', 2);
+[x,y] = histForBarlikePlot(bins, bdrydist');
+semilogx(x, y, '-', 'Color', 'k', 'LineWidth', 2);
 hold off
-axis([10 1.5*10^3 0 0.15])
+axis([10 bins(end) 0 0.1])
 legend({'Fat no boundary','Fat boundary'})
-%saveas(h, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLog' ext]));
+if saveResults
+    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity20hAvgCombinedLogBinned' ext]));
+end
 
 %%
 % visualize Fat 
@@ -454,6 +577,10 @@ for i = 1:nBatches
     for j = 1:numel(batchIdx{i})
         NBd = stats{batchIdx{i}(j)}.NFatDsBdries;
         NIf = stats{batchIdx{i}(j)}.NFatDsInterfaces;
+        
+        if i == 6
+            [j NBd/NIf]
+        end
         scatter(batchTimes(i),NBd/NIf, 40, i, 'o', 'fill');
         batchAvg(i) = batchAvg(i) + NBd/NIf;
     end
@@ -539,8 +666,7 @@ end
 %--------------------------------------------------------------
 % bdries vs total Ds 
 %--------------------------------------------------------------
-
-clf
+figure
 hold on
 
 cmap = lines(nBatches);
@@ -611,18 +737,22 @@ end
 % scatter(S.DsIntensities, S.NumBoundaries./S.NumAccumulating,'.');
 % axis([min(S.DsIntensities)  max(S.DsIntensities) 0 0.4]);
 
-
 %%
 %-----------------------------------------------------------------
-% scatter plot of Fat/Ds of cell in Fat/Ds interface and boundary
+% scatter plot and 2D histogram of Fat/Ds of cell in Fat/Ds interface and boundary
 %-----------------------------------------------------------------
+
+% for 2D histogram: 
+% need intensities of cells on each side of bdry
+% and also intensity of cells on each side of interface, but only if
+% interface doesn't belong to cell that also has a boundary?
 
 c1FatTot = [];
 c2DsTot = [];
 c1FatBTot = [];
 c2DsBTot = [];
 
-for i = 1:nBatches
+for i = 12%:nBatches
 
     c1FatbatchTot = [];
     c2DsbatchTot = [];
@@ -660,10 +790,10 @@ for i = 1:nBatches
             idx = ifCells;
 
             c1state = cat(1,cellLayer.cells{1}(idx(:,1)).state);
-            c1Fat =  c1state(:,1) - FatBG;
+            c1Fat =  c1state(:,1);% - FatBG;
 
             c2state = cat(1,cellLayer.cells{1}(idx(:,2)).state);
-            c2Ds =  c2state(:,2) - DsBG;
+            c2Ds =  c2state(:,2);% - DsBG;
 
             H = hist2d(real([c2Ds, c1Fat]), 50, 50, [Ibins{1}(1) Ibins{1}(end)], [Ibins{2}(1) Ibins{2}(end)]);
             H = H./sum(H(:));
@@ -677,9 +807,9 @@ for i = 1:nBatches
             idx = bdryCells;
         
             c1state = cat(1,cellLayer.cells{1}(idx(:,1)).state);
-            c1FatB =  c1state(:,1) - FatBG;
+            c1FatB =  c1state(:,1);% - FatBG;
             c2state = cat(1,cellLayer.cells{1}(idx(:,2)).state);
-            c2DsB =  c2state(:,2) - DsBG;
+            c2DsB =  c2state(:,2);% - DsBG;
             HB = hist2d(real([c2DsB, c1FatB]), 50, 50, [Ibins{1}(1) Ibins{1}(end)], [Ibins{2}(1) Ibins{2}(end)]);
             HB = HB./sum(HB(:));
             HB = imrotate(HB,90);
@@ -694,19 +824,19 @@ for i = 1:nBatches
             c1FatBbatchTot = cat(1, c1FatBbatchTot, c1FatB);
             c2DsBbatchTot = cat(1, c2DsBbatchTot, c2DsB);
         
-            % visualize
-            h = figure;
-            scatter(c1FatB,c2DsB,'oy', 'fill') 
-            hold on
-            scatter(c1Fat,c2Ds, 'ob') 
-            hold off
-
-            title('Fat-Ds Pair Intensities');
-            xlabel('Fat');
-            ylabel('Ds');
-            axis([lims{1,2}, lims{1,1}]);
-            legend( ['Fat-Ds boundary, N = ' num2str(sum(FatDsBdryIdx)/2)],...
-                    ['Fat-Ds interface, N = ' num2str(sum(FatDsIfIdx)/2)]);
+%             % visualize
+%             h = figure;
+%             scatter(c1FatB,c2DsB,'oy', 'fill') 
+%             hold on
+%             scatter(c1Fat,c2Ds, 'ob') 
+%             hold off
+% 
+%             title('Fat-Ds Pair Intensities');
+%             xlabel('Fat');
+%             ylabel('Ds');
+%             axis([lims{1,2}, lims{1,1}]);
+%             legend( ['Fat-Ds boundary, N = ' num2str(sum(FatDsBdryIdx)/2)],...
+%                     ['Fat-Ds interface, N = ' num2str(sum(FatDsIfIdx)/2)]);
 
             if saveResults
                 saveas(h, fullfile(filepath{j}, 'analysis_results', ['pairIntensities' ext]));
@@ -1146,16 +1276,43 @@ end
 
 for i = 1:nImages
 
-    txtfile = fullfile(filepath{i}, 'analysis_results', 'stats_new.txt');
+    fparts = strsplit(filepath{i},'/');
+    fname = fullfile(combinedOutputPath, ['stats_' fparts{end-1} '_' fparts{end}]);
+    txtfile = [fname '.txt'];
+
     if exist(txtfile)
-        delete(fullfile(filepath{i}, 'analysis_results', 'stats_new.txt'));
+        delete(txtfile);
     end
     diary(txtfile)
-%     i
-%     stats{i}
-    diary off
     S = stats{i};
-    fparts = strsplit(filepath{i},'/');
-    save(fullfile(combinedOutputPath, ['stats_' fparts{end-1} '_' fparts{end}]), 'S');
+    fn_structdisp(S)
+    diary off
+
+%     S = stats{i};
+%     save(fname, 'S');
 end
 
+%%
+%-------------------------------------------------------
+% save stats in single .txt for elife
+%-------------------------------------------------------
+
+fname = fullfile(combinedOutputPath, 'allstats');
+txtfile = [fname '.txt'];
+
+if exist(txtfile)
+    delete(txtfile);
+end
+diary(txtfile)
+
+for i = 1:nImages
+
+    fparts = strsplit(filepath{i},'/');
+    disp('----------------');
+    disp(fparts{end})
+    disp('----------------');
+    S = stats{i};
+    fn_structdisp(S)
+end
+
+diary off

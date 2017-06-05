@@ -16,8 +16,8 @@ cd('../..');
 addpath(genpath(pwd));
 
 % import parameters (data and code locations, ...)
-%snapshotSegParametersLocal_exp020715;
-snapshotSegParametersLocal_exp280715;
+snapshotSegParametersLocal_exp020715;
+%snapshotSegParametersLocal_exp280715;
 
 %filepath = {'/Users/idse/Dropbox/Sprinzak/shared/snapshots 07.05.15/6h dox ilastic/dox 1h_5/'};
 %corder = {[1 3 2 4]};
@@ -33,17 +33,18 @@ end
 
 saveIntermediates = false;%true;
 
-for fi = 1:numel(filepath) 
+%%
+for fi = 1:numel(filepath) %51
 
     % location of segmentation files
     nucleisegFile   = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_nuclei_seg.tif']);
     FDFile     = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_seg.tif']);
     bdryFile     = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_bdryseg.tif']);
     
-    if ~exist(nucleisegFile,'file') || ~exist(FDFile,'file')%...
-                                  %  || ~exist(bdryFile,'file')
-        warning(['some segmentation file is missing for ' filepath{fi}]);
-    else
+%     if ~exist(nucleisegFile,'file') || ~exist(FDFile,'file')%...
+%                                   %  || ~exist(bdryFile,'file')
+%         warning(['some segmentation file is missing for ' filepath{fi}]);
+%     else
         
     %-----------------------------
     disp('read the data')
@@ -232,7 +233,7 @@ for fi = 1:numel(filepath)
 
     % superimpose boundary and cell segementation
     % imshow(cat(3, finalseg + cleanBdry, cleanBdry, nucroi))
- 
+
     %---------------------------------------------------------------
     disp('remove giant cell cluster messes')
     %---------------------------------------------------------------
@@ -241,16 +242,22 @@ for fi = 1:numel(filepath)
     stats = regionprops(nucCC, 'area', 'solidity');
     badNuc = find([stats.Solidity] < 0.9 & [stats.Area] > 2000);
     badCell = uint16(0*badNuc);
-    
+
     cellsL = newL;
     cellsLclean = cellsL;
     nucroiclean = nucroi;
     
     for i = 1:numel(badNuc)
+        % label of bad cells
         badCell(i) = cellsL(nucCC.PixelIdxList{badNuc(i)}(1));
         cellsLclean(cellsL == badCell(i)) = bglabels(1);
         nucroiclean(nucCC.PixelIdxList{badNuc(i)}) = false;
     end
+    
+    % remove interfaces between bg regions
+    newbg = imclose(cellsLclean==1,strel('disk',1));
+    cellsLclean(newbg) = 1;
+    
     cellsL = cellsLclean;
     nucroi = nucroiclean;
 
@@ -267,7 +274,7 @@ for fi = 1:numel(filepath)
     memseg(cellsL==0) = 1;
 
     % create a CellLayer object called cellLayer
-    cellStateVars = {'FatRaw', 'DsRaw', 'FatSegNuc','DsSegNuc', 'Fat', 'Ds'};
+    cellStateVars = {'FatRaw', 'DsRaw', 'FatSegNuc','DsSegNuc', 'Fat', 'Ds', 'FatExclB','DsExclB'};
     bondStateVars = {'FD','FF','DD','bdry', 'BFI', 'BDI'};
     nTimePts = 1;
     cellLayer = CellLayer(nTimePts, cellStateVars, bondStateVars);
@@ -278,17 +285,22 @@ for fi = 1:numel(filepath)
     t = 1;
     options = struct('closeSize', 0, 'minVertexDist', 1, 'bgCells', 0, 'trim', 0);
     cellLayer.initTime(t, 'image', memseg, options);
-
-
+    
     %-----------------------------------------------
     disp('determine Fat/Ds levels in each cell')
     %-----------------------------------------------
 
     cellL = cellLayer.cellL(t);
 
+    %bdrypixel = find(bdriesroi);
     CC = bwconncomp(cellL>0,4);
 	nucCC = bwconncomp(nucroi,8);
 
+    FatNoB = double(Fat);
+    DsNoB = double(Ds);
+    FatNoB(bdriesroi) = NaN;
+    DsNoB(bdriesroi) = NaN;
+    
     if nucCC.NumObjects~=CC.NumObjects
         warning('Ncells ~= Nnuclei!');
     else
@@ -296,8 +308,11 @@ for fi = 1:numel(filepath)
     for i = 1:CC.NumObjects
 
         % raw intensity in cell mask
-        FatRaw =  mean(Fat(CC.PixelIdxList{i}));
+        FatRaw = mean(Fat(CC.PixelIdxList{i}));
         DsRaw = mean(Ds(CC.PixelIdxList{i}));
+        
+        FatExclB = nanmean(FatNoB(CC.PixelIdxList{i}));
+        DsExclB = nanmean(DsNoB(CC.PixelIdxList{i}));
         
 %         % slow but freedom to change the cellmask
 %         mask = false(size(FatSeg));
@@ -309,6 +324,7 @@ for fi = 1:numel(filepath)
         % update cellLayer
         s = cellLayer.cells{t}(i).state;
         s(1:2) = [FatRaw DsRaw];
+        s(7:8) = [FatExclB DsExclB];
         cellLayer.cells{t}(i).setState(s);
         
         % segmented amount of red/green in nuclear mask
@@ -430,7 +446,7 @@ for fi = 1:numel(filepath)
         imwrite(im, fullfname);
         NSteps = NSteps + 1;
     end
-    
+   
     %--------------------------------------------------------------
     disp('identify Fat-Ds interfaces that actually form boundaries')
     %--------------------------------------------------------------
@@ -475,6 +491,12 @@ for fi = 1:numel(filepath)
         % minimum number of accumulation pixels to count it toward some
         % interface
         basinidx = basinidx(n > 20);
+        
+%         R = uint8(cellLayer.L);% & cellLayer.L < numel(cellLayer.cells{1}));
+%         G = cellLayer.L == bondLabel;
+%         B = G;
+%         imshow(255*cat(3,R,G,B))
+%         
 
         if ~isempty(basinidx)
             
@@ -602,12 +624,12 @@ for fi = 1:numel(filepath)
     disp('save results for later analysis')
     %--------------------------------------------------------------
 
-%     save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg_new']), 'cellLayer',...
+%     save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg617']), 'cellLayer',...
 %                                     'bdryFI', 'bdryDI', 'assignedBdry')
 
-    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg_new']), 'cellLayer');
+    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg617']), 'cellLayer');
 
 
     end
-    end
+    %end
 end
