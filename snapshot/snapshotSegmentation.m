@@ -16,8 +16,9 @@ cd('../..');
 addpath(genpath(pwd));
 
 % import parameters (data and code locations, ...)
-snapshotSegParametersLocal_exp020715;
 %snapshotSegParametersLocal_exp280715;
+%snapshotSegParametersLocal_exp020715;
+snapshotSegParametersLocal_exp280715_23052017_3
 
 %filepath = {'/Users/idse/Dropbox/Sprinzak/shared/snapshots 07.05.15/6h dox ilastic/dox 1h_5/'};
 %corder = {[1 3 2 4]};
@@ -31,7 +32,7 @@ end
 
 [fnames, lims, flabel] = postIlastik(datapath, dataset); 
 
-saveIntermediates = false;%true;
+saveIntermediates = true;
 
 %%
 for fi = 1:numel(filepath) %51
@@ -61,7 +62,7 @@ for fi = 1:numel(filepath) %51
     Nuc     = imread(fname, corder{fi}(4));
     
     % nuclei segmentation
-    nucleiSeg   = imread(nucleisegFile) == 1;
+    nucleiSeg   = imread(nucleisegFile) == 2; % 2 for 28.7.15, 1 for 2.7.15
 
     % Fat-Ds segmentation
     FDseg     = imread(FDFile);
@@ -196,11 +197,11 @@ for fi = 1:numel(filepath) %51
 
     % at this point there are more regions in L numel(unique(L(:)))-1 
     % than nuclei because of the background regions 
-    
+
     % give disconnected background regions the same label
     nucLabels = unique(L(nucroi>0));
     bglabels = setdiff(unique(L(:)), [0 nucLabels']);
-    
+
     for i = 1:length(bglabels)
         L(L==bglabels(i)) = bglabels(1);
     end
@@ -210,7 +211,7 @@ for fi = 1:numel(filepath) %51
     idx  = (L~=bglabels(1)) - bgedges > 0;
     newL = L;
     newL(idx) = bglabels(1);
-    
+
     % at this point #region in newL numel(unique(newL(:)))-1 
     % should be number of nuclei + 1, bc membrane = 0, bg = 1, ..
 
@@ -220,7 +221,7 @@ for fi = 1:numel(filepath) %51
     colorsegFatDs = cat(3,  imadjust(mat2gray(Ds)) + finalseg,...
                             imadjust(mat2gray(Fat)) + finalseg,...
                             nucroi + finalseg);
-                        
+
     %figure, imshow(colorsegFatDs);
 
     im = colorsegFatDs;
@@ -514,9 +515,17 @@ for fi = 1:numel(filepath) %51
                     BFI = mean(Fat(bdryPL));
                     BDI = mean(Ds(bdryPL));
 
-                    opposingBonds(1).setState([true false false true BFI BDI]);
-                    opposingBonds(2).setState([true false false true BFI BDI]);
-                    
+                    % a two sided cell sharing one interface with another
+                    % cell and one with the outside has two opposing bonds 
+                    % but only one can be accumulating boundary, the if
+                    % statement excludes the one facing the outside (
+                    if all(opposingBonds(1).cellInd > 0)
+                        opposingBonds(1).setState([true false false true BFI BDI]);
+                    end
+                    if all(opposingBonds(2).cellInd > 0)
+                        opposingBonds(2).setState([true false false true BFI BDI]);
+                    end
+
                     Haz(ifCC.PixelIdxList{basinidx(i)}) = true;
                 end
             end
@@ -538,12 +547,12 @@ for fi = 1:numel(filepath) %51
                     
     im = segmented;
     %if saveIntermediates
-        fname = [num2str(NSteps, '%.2u') '_seg_full_new.tif'];
+        fname = '01_seg_full_new.tif';
         fullfname = fullfile(filepath{fi},segResultsDir, fname);
         imwrite(im, fullfname);
         NSteps = NSteps + 1;
     %end
-    
+
 % %%
 %     %--------------------------------------------------------------
 %     disp('identify Fat-Ds interfaces that actually form boundaries')
@@ -627,8 +636,7 @@ for fi = 1:numel(filepath) %51
 %     save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg617']), 'cellLayer',...
 %                                     'bdryFI', 'bdryDI', 'assignedBdry')
 
-    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg617']), 'cellLayer');
-
+    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg623']), 'cellLayer');
 
     end
     %end

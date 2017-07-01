@@ -1,6 +1,6 @@
 %--------------------------------------------------------------------------
 %
-%   analysis of snapshot segmentation
+%   analysis of snapshot segmentat  ion
 %
 %--------------------------------------------------------------------------
 
@@ -22,8 +22,8 @@ addpath(genpath(pwd));
 %snapshotSegParametersLocal_exp280715;
 %snapshotSegParametersLocal_hysteresis
 
-snapshotSegParametersLocal_exp020715
-%snapshotSegParametersLocal_exp280715_23052017_3
+%snapshotSegParametersLocal_exp020715
+snapshotSegParametersLocal_exp280715_23052017_3
 
 % check corder parameter
 if numel(corder) ~= numel(filepath)
@@ -42,7 +42,7 @@ nBatches = numel(batchLabel);
 
 for i = 1:nImages
     
-    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg617']); % for the 2.7.15 set final run
+    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg']); 
     if exist([fname '.mat'],'file')
         S = load(fname);
         CL{i} = S.cellLayer;
@@ -177,7 +177,7 @@ for i = 1:nBatches
         
         IFat = cellStates(:,1);
         IDs = cellStates(:,2);
-
+    
         % for individual distributions (mostly a control to pick out bad
         % images)
         stats{j}.IDs = IDs;
@@ -203,7 +203,7 @@ for i = 1:nBatches
         IDsTot = cat(1, IDsTot, IDs);
         IFatTot = cat(1, IFatTot, IFat);
 
-        % SEG: intensity distribution of segmented cells of some kind
+        % SEG: intensity distribution of segmented cells
         IDsSegTot = cat(1, IDsSegTot, IDs(DsIdx));
         IFatSegTot = cat(1, IFatSegTot, IFat(FatIdx));
         
@@ -240,18 +240,18 @@ for i = 1:nBatches
 
     tol = 0.005;
     IFatRef = IFatSegTot; %IFat; %
-    IFatmin = min(IFatRef) - lambdaI;       
+    IFatmin = min(IFatRef) - lambdaI;      
     IFatmax = (max(IFatRef)- min(IFatRef))*stretchlim(mat2gray(IFatRef), tol);
     IFatmax = IFatmax(2);
     if IFatmax < 1000 % at Olga's request
         IFatmax = 1000;
     end
-    
+
     DsBins = linspace(lambdaI, IDsmax, Nbins);
     FatBins = linspace(lambdaI, IFatmax, Nbins);
     
-    logbinsDs = linspace(log10(lambdaI), log10(IDsmax), Nbins);
-    logbinsFat = linspace(log10(lambdaI), log10(IFatmax), Nbins);
+    logbinsDs = linspace(log(lambdaI), log(IDsmax), Nbins);
+    logbinsFat = linspace(log(lambdaI), log(IFatmax), Nbins);
     
 %     % TEMPORARY FOR INTENSITY FAT/DS DISTRIBUTIONS QUALITY CONTROL
 %     IFatmin = 0;
@@ -282,26 +282,26 @@ for i = 1:nBatches
     batchStat.IFatNoBdry = makeDist(IFatNoBdryTot - IFatmin, FatBins);
 
     % SEG NO BDRY LOG
-    batchStat.IDsNoBdryLogBin = makeDist(log10(IDsNoBdryTot - IDsmin), logbinsDs);
-    batchStat.IFatNoBdryLogBin = makeDist(log10(IFatNoBdryTot - IFatmin), logbinsFat);
+    batchStat.IDsNoBdryLogBin = makeDist(log(IDsNoBdryTot - IDsmin), logbinsDs);
+    batchStat.IFatNoBdryLogBin = makeDist(log(IFatNoBdryTot - IFatmin), logbinsFat);
           
     % SEG BDRY
     batchStat.IDsBdry = makeDist(IDsBdryTot - IDsmin, DsBins);
     batchStat.IFatBdry = makeDist(IFatBdryTot - IFatmin, FatBins);
 
     % SEG BDRY LOG
-    batchStat.IDsBdryLogBin = makeDist(log10(IDsBdryTot  - IDsmin), logbinsDs);
-    batchStat.IFatBdryLogBin = makeDist(log10(IFatBdryTot - IFatmin), logbinsFat);
+    batchStat.IDsBdryLogBin = makeDist(log(IDsBdryTot  - IDsmin), logbinsDs);
+    batchStat.IFatBdryLogBin = makeDist(log(IFatBdryTot - IFatmin), logbinsFat);
 
     % 2D distributions for interfaces
     I = [ifIFatDsTot(:,1) - IFatmin, ifIFatDsTot(:,2) - IDsmin];
-    batchStat.IifLogBinHist = hist2d(log10(I)', Nbins, Nbins, logbinsFat([1 end]), logbinsDs([1 end]));
+    batchStat.IifLogBinHist = hist2d(log(I)', Nbins, Nbins, logbinsFat([1 end]), logbinsDs([1 end]));
     
     I = [bdryIFatDsTot(:,1) - IFatmin, bdryIFatDsTot(:,2) - IDsmin];
-    batchStat.IbdryLogBinHist = hist2d(log10(I), Nbins, Nbins, logbinsFat([1 end]), logbinsDs([1 end]));
+    batchStat.IbdryLogBinHist = hist2d(log(I), Nbins, Nbins, logbinsFat([1 end]), logbinsDs([1 end]));
     
     statsTot{i} = batchStat;
-    
+
     % save stats to .mat
     save(fullfile(combinedOutputPath, 'analysis_results', 'raw', ['stats_' batchLabel{i}]), 'batchStat');
     
@@ -341,20 +341,20 @@ bi = 12;
 
 figure,
 % equivalence of binning logI linearly or I on log scale
-dist = hist(log10(IDsNoBdryTot - IDsmin), logbinsDs);
+dist = hist(log(IDsNoBdryTot - IDsmin), logbinsDs);
 dist = dist./sum(dist(:));
-semilogx(10.^logbinsDs, dist,'-x','Color','r')
+semilogx(exp(logbinsDs), dist,'-x','Color','r')
 xlim([10 DsBins(end)]);
 
 figure,
-dist = hist(IDsNoBdryTot - IDsmin, 10.^logbinsDs);
+dist = hist(IDsNoBdryTot - IDsmin, exp(logbinsDs));
 dist = dist./sum(dist(:));
-semilogx(10.^logbinsDs, dist,'-x')
+semilogx(exp(logbinsDs), dist,'-x')
 xlim([10 DsBins(end)]);
 
 % Log Bin
 figure,
-bins = 10.^logbinsDs(1:end-1);
+bins = exp(logbinsDs(1:end-1));
 semilogx(bins, statsTot{bi}.IDsNoBdryLogBin.dist(1:end-1), '-x', 'Color', 'r', 'LineWidth', 2);
 hold on
 semilogx(bins, statsTot{bi}.IDsBdryLogBin.dist(1:end-1), '-x', 'Color', 'b', 'LineWidth', 2);
@@ -507,7 +507,7 @@ for bi = 1:nBatches
     
     clf
 
-    bins = 10.^logbinsDs(1:end-1);
+    bins = exp(logbinsDs(1:end-1));
     nobdrydist = statsTot{bi}.IDsNoBdryLogBin.dist(1:end-1);
     bdrydist = statsTot{bi}.IDsBdryLogBin.dist(1:end-1);
 
@@ -518,7 +518,7 @@ for bi = 1:nBatches
     semilogx(x, y, '-', 'Color', 'k', 'LineWidth', 2);
     hold off
     legend({'Ds no boundary','Ds boundary'})
-    axis([10 bins(end) 0 0.08])
+    axis([10 bins(end) 0 0.075])
     
     if saveResults
         saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity' batchLabel{bi} 'LogBinned.png']));
@@ -574,7 +574,7 @@ for bi = 1:nBatches
     
     clf
 
-    bins = 10.^logbinsFat(1:end-1);
+    bins = exp(logbinsFat(1:end-1));
     nobdrydist = statsTot{bi}.IFatNoBdryLogBin.dist(1:end-1);
     bdrydist = statsTot{bi}.IFatBdryLogBin.dist(1:end-1);
 
@@ -681,7 +681,7 @@ for i = 1:nBatches
         if i == 12
             [j NBd/NIf];
         end
-        scatter(batchTimes(i),NBd/NIf, 15, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
+        scatter(batchTimes(i),NBd/NIf, 40, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
         batchAvg(i) = batchAvg(i) + NBd/NIf;
     end
     batchAvg(i) = batchAvg(i)/numel(batchIdx{i});
@@ -729,7 +729,7 @@ for i = 1:nBatches
     batchAvg(i) = 0;
     for j = 1:numel(batchIdx{i})
         DsImean = mean(stats{batchIdx{i}(j)}.IDsSeg.table);
-        scatter(batchTimes(i),DsImean, 15, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
+        scatter(batchTimes(i),DsImean, 40, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
         batchAvg(i) = batchAvg(i) + DsImean;
     end
     batchAvg(i) = batchAvg(i)/numel(batchIdx{i});
@@ -808,7 +808,7 @@ for i = 1:nBatches
         NFatCellsBatch = [NFatCellsBatch NFatCells];
         NDsCellsBatch = [NDsCellsBatch NDsCells];
 
-        scatter(DsImean-minDsI,NBd/NIf, 15, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
+        scatter(DsImean-minDsI,NBd/NIf, 40, cmap(i,:), 'o', 'fill','MarkerEdgeColor','k');
     end
     
     statsPerTimeForDavid{i} = struct('label', batchLabel{i},...
@@ -896,6 +896,42 @@ for bi = 1:nBatches
             saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.fig']));
             saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.png']));
         end
+end
+
+%%
+%-----------------------------------------------------------------
+% 2D histogram of Fat/Ds of cell in Fat/Ds interface and boundary
+%-----------------------------------------------------------------
+
+for bi = 1:nBatches
+        
+        H = statsTot{bi}.IifLogBinHist;
+        HB = statsTot{bi}.IbdryLogBinHist;
+        
+        T = (sum(HB(:))+sum(H(:)));
+        H = H./T;
+        HB = HB./T;
+
+        % histogram log
+        clf
+%         tol = 0.02;
+%         HBlim = stretchlim(mat2gray(HB),tol);
+%         Hlim = stretchlim(mat2gray(H),tol);
+%         HB = imadjust(mat2gray(HB, [10^(-4) 2*10^(-3)]))';%, HBlim)';
+%         H = imadjust(mat2gray(H, [10^(-4) 2*10^(-3)]))';%, Hlim)';
+        HB = mat2gray(HB, [10^(-4) 0.5*10^(-3)])';
+        H = mat2gray(H, [10^(-4) 10^(-3)])';
+   
+        %iptsetpref('ImshowAxesVisible','off');
+        imshow(cat(3,HB+H,HB,H));%,'XData',exp(logbinsDs))
+        %axis square
+        set(gca,'Ydir','normal');
+        %set(gca,'Xscale','log','Xdir','normal');
+        ylabel('Fat')
+        xlabel('Ds')
+        
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.fig']));
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.png']));
 end
 
 %%
