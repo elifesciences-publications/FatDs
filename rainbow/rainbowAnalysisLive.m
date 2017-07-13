@@ -56,7 +56,7 @@ Gtol = 0.001;
 
 separations = {};
 
-for fi = numel(files):-1:1 % reverse order to adjust LUT to final
+for fi = numel(files)%:-1:1 % reverse order to adjust LUT to final
 
     %-----------------------------
     % read the data
@@ -159,10 +159,10 @@ for fi = numel(files):-1:1 % reverse order to adjust LUT to final
         plot(FatProf,'g','LineWidth',3)
         plot(DsProf,'r','LineWidth',1)
 
-        %[maxFatI, maxFatidx] = findpeaks(FatProf./max(FatProf(:)),'MinPeakProminence',0.1,'MinPeakHeight',0.6);
-        %[maxDsI, maxDsidx] = findpeaks(DsProf./max(DsProf(:)),'MinPeakProminence',0.1,'MinPeakHeight',0.6);
-        [~,maxFatidx] = max(FatProf);
-        [~,maxDsidx] = max(DsProf);
+        [maxFatI, maxFatidx] = findpeaks(FatProf./max(FatProf(:)),'MinPeakProminence',0.1,'MinPeakHeight',0.5);
+        [maxDsI, maxDsidx] = findpeaks(DsProf./max(DsProf(:)),'MinPeakProminence',0.1,'MinPeakHeight',0.5);
+%         [~,maxFatidx] = max(FatProf);
+%         [~,maxDsidx] = max(DsProf);
         if numel(maxFatidx) == 1 && numel(maxDsidx) == 1
             dmax = -(maxDsidx-maxFatidx);
             [maxDsidx, maxFatidx, dmax];
@@ -206,6 +206,7 @@ saveas(gcf,fullfile(dataDir,'xsectionT40_y150_200.fig'));
 
 %%
 
+hold on
 for fi = 1:numel(files)
     
     sep = separations{fi};
@@ -229,7 +230,4 @@ for fi = 1:numel(files)
     saveas(gcf,fullfile(dataDir,['separationAll_T' num2str(10+fi*5) '.png']));
     saveas(gcf,fullfile(dataDir,['separationAll_T' num2str(10+fi*5) '.fig']));
 end
-
-
-
 

@@ -42,7 +42,7 @@ nBatches = numel(batchLabel);
 
 for i = 1:nImages
     
-    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg617']); % for the 2.7.15 set final run
+    fname = fullfile(filepath{i},'matlab_seg',[flabel{i} '_seg704']); % for the 2.7.15 set final run
     if exist([fname '.mat'],'file')
         S = load(fname);
         CL{i} = S.cellLayer;
@@ -58,7 +58,7 @@ end
 saveResults = false;
 
 % PAY ATTENTION: there was _new at the end here at some point
-ext = '620.png';
+ext = '705.png';
 
 stats = {};
 
@@ -232,17 +232,40 @@ for i = 1:nBatches
     %-----------------------------
 
     lambdaI = 10; 
-    tol = 0.005;
+    
+    tol = 0.01;
     IDsRef = IDsSegTot; %IDs; 
-    IDsmin = min(IDsRef) - lambdaI;       
-    IDsmax = (max(IDsRef)-min(IDsRef))*stretchlim(mat2gray(IDsRef), tol);
-    IDsmax = IDsmax(2);
+    Dslim = stretchlim(mat2gray(IDsRef), tol)*(max(IDsRef) - min(IDsRef)) + min(IDsRef);
+    
+    %IDsmin = min(IDsRef) - lambdaI;       
+    IDsmin = Dslim(1) - lambdaI; 
+    IDsmax = Dslim(2);
+    
+    IDsBdryTot(IDsBdryTot < Dslim(1)) = Dslim(1); 
+    IDsNoBdryTot(IDsNoBdryTot < Dslim(1)) = Dslim(1); 
+    bdryIFatDsTot(bdryIFatDsTot(:,2) < Dslim(1),2) = Dslim(1);
+    ifIFatDsTot(ifIFatDsTot(:,2) < Dslim(1),2) = Dslim(1);
+    
+%     IDsmax = (max(IDsRef)-min(IDsRef))*Dslim;
+    %IDsmax = Dslim(2);
 
-    tol = 0.005;
+    tol = 0.01;
     IFatRef = IFatSegTot; %IFat; %
-    IFatmin = min(IFatRef) - lambdaI;       
-    IFatmax = (max(IFatRef)- min(IFatRef))*stretchlim(mat2gray(IFatRef), tol);
-    IFatmax = IFatmax(2);
+    Fatlim = stretchlim(mat2gray(IFatRef), tol)*(max(IFatRef) - min(IFatRef)) + min(IFatRef);
+    
+    %IFatmin = min(IFatRef) - lambdaI;      
+    IFatmin = Fatlim(1) - lambdaI;      
+    IFatmax = Fatlim(2);
+    
+    disp([num2str(i) ': ' num2str([IFatmin IDsmin])]);
+    
+    IFatBdryTot(IFatBdryTot < Fatlim(1)) = Fatlim(1); 
+    IFatNoBdryTot(IFatNoBdryTot < Fatlim(1)) = Fatlim(1);
+    bdryIFatDsTot(bdryIFatDsTot(:,1) < Fatlim(1),1) = Fatlim(1);
+    ifIFatDsTot(ifIFatDsTot(:,1) < Fatlim(1),1) = Fatlim(1);
+    
+    %IFatmax = (max(IFatRef)- IFatmin)*Fatlim;
+    %IFatmax = IFatmax(2);
     if IFatmax < 1000 % at Olga's request
         IFatmax = 1000;
     end
@@ -521,8 +544,8 @@ for bi = 1:nBatches
     axis([10 bins(end) 0 0.08])
     
     if saveResults
-        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity' batchLabel{bi} 'LogBinned.png']));
-        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity' batchLabel{bi} 'LogBinned.fig']));
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity' batchLabel{bi} 'LogBinned_705.png']));
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['DsIntensity' batchLabel{bi} 'LogBinned_705.fig']));
     end
 end
 
@@ -589,8 +612,8 @@ for bi = 1:nBatches
     legend({'Fat no boundary','Fat boundary'})
 
     if saveResults
-        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity' batchLabel{bi} 'LogBinned.fig']));
-        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity' batchLabel{bi} 'LogBinned.png']));
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity' batchLabel{bi} 'LogBinned_705.fig']));
+        saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['FatIntensity' batchLabel{bi} 'LogBinned_705.png']));
     end
 end
 
@@ -706,8 +729,8 @@ set(gca, 'LineWidth', 2);
 
 if saveResults
     %I = getframe(gcf);
-    saveas(h, fullfile(combinedOutputPath, 'analysis_results', 'accumulationFraction.png'));
-    saveas(h, fullfile(combinedOutputPath, 'analysis_results', 'accumulationFraction.fig'));
+    saveas(h, fullfile(combinedOutputPath, 'analysis_results', 'accumulationFraction_705.png'));
+    saveas(h, fullfile(combinedOutputPath, 'analysis_results', 'accumulationFraction_705.fig'));
 %     for i = 1:nImages % for convenience make copy in each dir
 %         saveas(h, fullfile(filepath{i}, 'analysis_results', 'accumulationFraction.png'));
 %         %imwrite(I.cdata, fullfile(filepath{i}, 'analysis_results', 'DsIntensity.png'));
@@ -832,8 +855,8 @@ set(gca,'FontWeight', 'bold')
 set(gca, 'LineWidth', 2);
 
 if saveResults
-    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', 'DsVsBoundaries.fig'));
-    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', 'DsVsBoundaries.png'));
+    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', 'DsVsBoundaries_705.fig'));
+    saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', 'DsVsBoundaries_705.png'));
 end
 
 % %%
@@ -847,7 +870,7 @@ end
 %-----------------------------------------------------------------
 
 for bi = 1:nBatches
-        
+        figure
         H = statsTot{bi}.IifLogBinHist;
         HB = statsTot{bi}.IbdryLogBinHist;
         
@@ -893,8 +916,8 @@ for bi = 1:nBatches
         xlabel('Ds')
         
         if saveResults 
-            saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.fig']));
-            saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog' batchLabel{bi} '.png']));
+            saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog_705_' batchLabel{bi} '.fig']));
+            saveas(gcf, fullfile(combinedOutputPath, 'analysis_results', ['2DhistLog_705_' batchLabel{bi} '.png']));
         end
 end
 

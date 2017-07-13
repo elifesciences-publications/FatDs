@@ -17,8 +17,8 @@ addpath(genpath(pwd));
 
 % import parameters (data and code locations, ...)
 %snapshotSegParametersLocal_exp280715;
-%snapshotSegParametersLocal_exp020715;
-snapshotSegParametersLocal_exp280715_23052017_3
+snapshotSegParametersLocal_exp020715;
+%snapshotSegParametersLocal_exp280715_23052017_3
 
 %filepath = {'/Users/idse/Dropbox/Sprinzak/shared/snapshots 07.05.15/6h dox ilastic/dox 1h_5/'};
 %corder = {[1 3 2 4]};
@@ -38,10 +38,10 @@ saveIntermediates = true;
 for fi = 1:numel(filepath) %51
 
     % location of segmentation files
-    nucleisegFile   = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_nuclei_seg.tif']);
-    FDFile     = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_seg.tif']);
-    bdryFile     = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_bdryseg.tif']);
-    
+    nucleisegFile = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_nuclei_seg.tif']);
+    FDFile = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_seg.tif']);
+    bdryFile = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_bdryseg.tif']);
+
 %     if ~exist(nucleisegFile,'file') || ~exist(FDFile,'file')%...
 %                                   %  || ~exist(bdryFile,'file')
 %         warning(['some segmentation file is missing for ' filepath{fi}]);
@@ -286,7 +286,7 @@ for fi = 1:numel(filepath) %51
     t = 1;
     options = struct('closeSize', 0, 'minVertexDist', 1, 'bgCells', 0, 'trim', 0);
     cellLayer.initTime(t, 'image', memseg, options);
-    
+
     %-----------------------------------------------
     disp('determine Fat/Ds levels in each cell')
     %-----------------------------------------------
@@ -303,7 +303,7 @@ for fi = 1:numel(filepath) %51
     DsNoB(bdriesroi) = NaN;
     
     if nucCC.NumObjects~=CC.NumObjects
-        warning('Ncells ~= Nnuclei!');
+        error('Ncells ~= Nnuclei!');
     else
 
     for i = 1:CC.NumObjects
@@ -335,67 +335,157 @@ for fi = 1:numel(filepath) %51
         % there is no guarantee that nuclear and cell labels match even
         % thought their total number is the same
         nucCell = cellLayer.L(nucCC.PixelIdxList{i}(1));
-
+        
         % update cellLayer
         s = cellLayer.cells{t}(nucCell).state;
         s(3:4) = [FatSegNuc DsSegNuc];
         cellLayer.cells{t}(nucCell).setState(s);
     end
-
+    end
+    
     %-----------------------------------------------
+    disp('save cell layer')
+    %-----------------------------------------------
+    
+    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg623']), 'cellLayer');
+end
+
+%%
+for fi = 51:numel(filepath) 
+
+    %-----------------------------
+    disp('read the data')
+    disp(filepath{fi});
+    %-----------------------------
+
+    fname = fullfile(filepath{fi},'matlab_seg',[flabel{fi} '_seg617']); % for the 2.7.15 set final run
+    if exist([fname '.mat'],'file')
+        S = load(fname);
+        cellLayer = S.cellLayer;
+    end
+
+    t = 1;
+    cellL = cellLayer.cellL(t);
+    CC = bwconncomp(cellL>0,4);
+
+    % raw data
+    fname = fnames{fi};
+    Ds      = imread(fname, corder{fi}(2));
+    Fat     = imread(fname, corder{fi}(3));
+    
+    % nuclear segmentation
+    nucleisegFile   = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_nuclei_seg.tif']);
+    nucroi = imread(nucleisegFile) == 1; % 2 for the 28.7.15 set
+    nucroi = imerode(nucroi,strel('disk',2));
+    nucroi = imopen(nucroi,strel('disk',5));
+    nucroi = imfill(nucroi,'holes');
+    
+    % bdry segmentation
+    bdryFile = fullfile(filepath{fi}, 'ilastik', [flabel{fi} '_FatDs_bdryseg.tif']);
+    bdryseg     = imread(bdryFile);
+    bdriesroi = bdryseg == 2;
+    cleanBdry = bwareaopen(bdriesroi & ~nucroi, 10);
+    cleanBdry = bwmorph(cleanBdry,'thin', 'inf');
+    cleanBdry = bwmorph(cleanBdry,'dilate', 1);
+
+    %----------------------------------------------------------------------
     disp('threshold segmented nuclear levels')
-    %-----------------------------------------------
+    %----------------------------------------------------------------------
 
-    cellsmask = imerode(newL>1,strel('disk',1));
+    cellsmask = imerode(cellL>1,strel('disk',1));
     FatCellsMask = false(size(cellsmask));
     DsCellsMask = false(size(cellsmask));
 
-    cutoff = 0;
+    allStates = cat(1, cellLayer.cells{t}.state);
+    FatFraction = allStates(:,3);
+    DsFraction = allStates(:,4);
+
+    FatRawLevel = allStates(:,7) - min(allStates(:,7),[],1) + 1;
+    DsRawLevel = allStates(:,8) - min(allStates(:,8),[],1) + 1;
+    FatRawLevel(FatRawLevel <= 0) = 1;
+    DsRawLevel(DsRawLevel <= 0) = 1;
+    relRaw = (FatRawLevel-DsRawLevel)./(FatRawLevel + DsRawLevel);
+
+    cutoff = 0.5;
+    properSeg = max(FatFraction, DsFraction) > cutoff;
+    FatIdx = properSeg & (FatFraction > DsFraction);
+    DsIdx = properSeg & (FatFraction < DsFraction);
+
+    relrawcutoff = 0; 
+    thrs = 0;  % shift the threshold away from Fat==Ds
+    FatIdx = FatIdx | (~properSeg & (relRaw > thrs + relrawcutoff));
+    DsIdx = DsIdx | (~properSeg & (relRaw < thrs - relrawcutoff));
+
     tic
     for i = 1:CC.NumObjects
 
-        cstate = cellLayer.cells{t}(i).state;
-        FatLevel = cstate(3);
-        DsLevel = cstate(4);
-        relLevel= (FatLevel-DsLevel)/(FatLevel + DsLevel);
-
-        if relLevel > cutoff
+        cstate = allStates(i,:);
+        
+        if FatIdx(i)
 
             cstate(5:6) = [1 0];
             FatCellsMask(CC.PixelIdxList{i}) = true;
 
-        elseif relLevel < -cutoff 
+        elseif DsIdx(i)
 
             cstate(5:6) = [0 1];
             DsCellsMask(CC.PixelIdxList{i}) = true;
-
-        else
-            cstate(5:6) = [0 0];
         end
 
         cellLayer.getCell(t,i).setState(cstate);
     end
+    toc
+%     
+%     %%
+%     cellLayer.calcCellGeometry(1);
+%     cellGeom = cat(1,cellLayer.cells{1}.geometry);
+%     XY = cat(1, cellGeom.centroid);
+%     
+%     %%
     FatCellsMask = FatCellsMask & ~nucroi;
     DsCellsMask = DsCellsMask & ~nucroi;
     otherCellsMask = cellsmask & ~FatCellsMask &~ DsCellsMask;
-    toc
 
     segmented = cat(3, mat2gray(DsCellsMask) + cleanBdry, FatCellsMask + cleanBdry, otherCellsMask & ~cleanBdry);
 %     figure,
 %     imshow(segmented);
+%     hold on
+%     for i = 1:size(XY,1)
+%         text(XY(i,1),XY(i,2),num2str(i),'Color','k');
+%     end
+% %    scatter(XY(:,1),XY(:,2),'.');%,num2str(i),'k');
+%     hold off
+%     axis off;
+% %%
+%     %figure,
+%     imshow(cat(3, imadjust(mat2gray(Ds)), imadjust(mat2gray(Fat)), nucroi - imerode(nucroi,strel('disk',2))));
+%     hold on
+%     for i = 1:size(XY,1)
+%         text(XY(i,1),XY(i,2),num2str(i),'Color','k');
+%     end
+% %    scatter(XY(:,1),XY(:,2),'.');%,num2str(i),'k');
+%     hold off
+%     axis off
+%     
+%     %%
+%     
+%     figure,
+%     imshow(cat(3, DsSeg, FatSeg, nucroi - imerode(nucroi,strel('disk',2))));
+%     hold on
+%     for i = 1:size(XY,1)
+%         text(XY(i,1),XY(i,2),num2str(i),'Color','k');
+%     end
+% %    scatter(XY(:,1),XY(:,2),'.');%,num2str(i),'k');
+%     hold off
+%     axis off
 
-    im = segmented;
-    if saveIntermediates
-        fname = [num2str(NSteps, '%.2u') '_cells_colored_nucMask.tif'];
-        fullfname = fullfile(filepath{fi},segResultsDir, fname);
-        imwrite(im, fullfname);
-        NSteps = NSteps + 1;
-    end
-    % %%
-    % imshow(segmented);
-    % options = struct('cellIndex', false, 'transparent', true, 'lineWidth', 2,...
-    %                     'edgeColor','m');
-    % cellLayer.visualize(t, options)
+%     im = segmented;
+%     if saveIntermediates
+%         fname = [num2str(NSteps, '%.2u') '_cells_colored_nucMask.tif'];
+%         fullfname = fullfile(filepath{fi},segResultsDir, fname);
+%         imwrite(im, fullfname);
+%         NSteps = NSteps + 1;
+%     end
 
     %--------------------------------------------------------------
     disp('interface counting')
@@ -441,6 +531,7 @@ for fi = 1:numel(filepath) %51
 
     %imshow(potBdries);
     im = potBdries;
+    NSteps = 8;
     if saveIntermediates
         fname = [num2str(NSteps, '%.2u') '_potential_bdries.tif'];
         fullfname = fullfile(filepath{fi},segResultsDir, fname);
@@ -492,12 +583,6 @@ for fi = 1:numel(filepath) %51
         % minimum number of accumulation pixels to count it toward some
         % interface
         basinidx = basinidx(n > 20);
-        
-%         R = uint8(cellLayer.L);% & cellLayer.L < numel(cellLayer.cells{1}));
-%         G = cellLayer.L == bondLabel;
-%         B = G;
-%         imshow(255*cat(3,R,G,B))
-%         
 
         if ~isempty(basinidx)
             
@@ -538,106 +623,18 @@ for fi = 1:numel(filepath) %51
     segmented = cat(3,  mat2gray(DsCellsMask & ~dilHaz) + dilHaz,...
                         (FatCellsMask & ~dilHaz) + dilHaz,...
                         (otherCellsMask & ~dilHaz)) ;
-%     imshow(segmented)
-% 
-%     segmented = cat(3,  mat2gray(DsCellsMask & ~cleanBdry) + cleanBdry,...
-%                         (FatCellsMask & ~cleanBdry) + cleanBdry,...
-%                         (otherCellsMask & ~cleanBdry)) ;
-%     figure, imshow(segmented)
-                    
+ 
     im = segmented;
     %if saveIntermediates
-        fname = '01_seg_full_new.tif';
+        fname = '01_seg_full_704.tif';
         fullfname = fullfile(filepath{fi},segResultsDir, fname);
         imwrite(im, fullfname);
         NSteps = NSteps + 1;
     %end
 
-% %%
-%     %--------------------------------------------------------------
-%     disp('identify Fat-Ds interfaces that actually form boundaries')
-%     %--------------------------------------------------------------
-% 
-%     % to haz or not to haz
-%     Haz = false(size(bdriesroi));
-% 
-%     ifCC = bwconncomp(FatDsIfMask);
-%     bdryCC = bwconncomp(bdriesroi);
-%     bdryL = bwlabel(bdriesroi);
-%     
-%     % make a list of assigned boundaries
-%     % then we can count those without overcounting double assignement
-%     assignedBdry = [];
-%     
-%     for bi = 1:ifCC.NumObjects
-% 
-%         intersectSize = sum(bdryL(ifCC.PixelIdxList{bi})>0);
-%         bondLabel = cellLayer.L(ifCC.PixelIdxList{bi}(1));
-%         
-%         % more than one boundary can be intersected
-%         % for now i just combine them
-%         % there can be overcounting due to this
-%         bdryLabel = setdiff(unique(bdryL(ifCC.PixelIdxList{bi})),0);
-%         
-%         %if intersectSize./bdrySize > 0.2 % THRESHOLD TO PLAY WITH
-%         if intersectSize > 0
-% 
-%             assignedBdry = [assignedBdry(:)' bdryLabel(:)'];
-%             opposingBonds = cellLayer.getBond(t,bondLabel);
-% 
-%             % temporary workaround until I deal with isolated pairs
-%             if ~isempty(opposingBonds)
-% 
-%                 BFI = mean(Fat(cat(1,bdryCC.PixelIdxList{bdryLabel})));
-%                 BDI = mean(Ds(cat(1,bdryCC.PixelIdxList{bdryLabel})));
-%                 
-%                 opposingBonds(1).setState([true false false true BFI BDI]);
-%                 opposingBonds(2).setState([true false false true BFI BDI]);
-%             end
-% 
-%             Haz(ifCC.PixelIdxList{bi}) = true;
-%         end
-%     end
-% 
-%     % boundary intensities                  
-%     assignedBdry = unique(assignedBdry);
-%     bdryFI = zeros(size(assignedBdry));
-%     bdryDI = zeros(size(assignedBdry));
-%     for i = 1:numel(bdryFI)
-%         bdryFI(i)=mean(Fat(bdryCC.PixelIdxList{assignedBdry(i)}));
-%         bdryDI(i)=mean(Ds(bdryCC.PixelIdxList{assignedBdry(i)}));
-%     end
-% 
-%     % image 
-%     dilHaz = imdilate(Haz, strel('disk',3));
-%     %FatDsMask = imdilate(FatDsMask, strel('disk',1));
-%     segmented = cat(3,  mat2gray(DsCellsMask & ~dilHaz) + dilHaz,...
-%                         (FatCellsMask & ~dilHaz) + dilHaz,...
-%                         (otherCellsMask & ~dilHaz)) ;
-%     imshow(segmented)
-% 
-%     segmented = cat(3,  mat2gray(DsCellsMask & ~cleanBdry) + cleanBdry,...
-%                         (FatCellsMask & ~cleanBdry) + cleanBdry,...
-%                         (otherCellsMask & ~cleanBdry)) ;
-%     figure, imshow(segmented)
-%                     
-%     im = segmented;
-%     if saveIntermediates
-%         fname = [num2str(NSteps, '%.2u') '_seg_full.tif'];
-%         fullfname = fullfile(filepath{fi},segResultsDir, fname);
-%         imwrite(im, fullfname);
-%         NSteps = NSteps + 1;
-%     end
-    
     %--------------------------------------------------------------
     disp('save results for later analysis')
     %--------------------------------------------------------------
 
-%     save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg617']), 'cellLayer',...
-%                                     'bdryFI', 'bdryDI', 'assignedBdry')
-
-    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg623']), 'cellLayer');
-
-    end
-    %end
+    save(fullfile(filepath{fi},segResultsDir,[flabel{fi} '_seg704']), 'cellLayer');
 end
